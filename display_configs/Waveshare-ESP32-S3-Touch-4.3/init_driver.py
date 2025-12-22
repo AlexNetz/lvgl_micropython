@@ -156,6 +156,8 @@ display = rgb_display.RGBDisplay(
     rgb565_byte_swap = False,
 )
 
+display.set_backlight(1)
+
 class MainScreen(lv.obj):
     def __init__(self, parent):
         super().__init__(parent)
