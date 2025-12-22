@@ -3,8 +3,8 @@ BOARD = "ESP32_S3_Waveshare4.3"
 BOARD_VARIANT = "SPIRAM_OCT"
 flash_size = 16
 enable_jtag_repl = 'n'
-enable_cdc_repl = 'y'
-enable_uart_repl = 'n'
+enable_cdc_repl = 'n'
+enable_uart_repl = 'y'
 CONFIG_FREERTOS_HZ='y'
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240='y'
 CONFIG_ESPTOOLPY_FLASHMODE_QIO='y'
@@ -98,3 +98,4 @@ params = [100]
 
 [task_handler.TaskHandler]
 params=[]
+
