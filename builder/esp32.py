@@ -161,6 +161,7 @@ def get_espidf():
     print(f'collecting ESP-IDF v5.5.1')
     print('this might take a while...')
     result, _ = spawn(cmd, spinner=True)
+    print('esp32.py', result, -)
     if result != 0:
         sys.exit(result)
 
@@ -556,7 +557,7 @@ def esp32_args(extra_args):
 
 def parse_args(extra_args, lv_cflags, brd):
     global board
-
+    print('esp32.py parse_args', extra_args, brd)
     copy_micropy_updates('esp32')
 
     if brd is None:
@@ -565,14 +566,14 @@ def parse_args(extra_args, lv_cflags, brd):
     board = brd
 
     extra_args = common_args(extra_args)
-
+    print('esp32.py parse_args', extrsa_args)
     if board == 'ESP32_GENERIC':
         extra_args = esp32_args(extra_args)
     elif board in ('ESP32_GENERIC_S3', 'ESP32_GENERIC_P4'):
         extra_args = esp32_s3_p4_args(extra_args)
-
+    print('esp32.py #1', extra_args)
     extra_args = repl_args(extra_args)
-
+    print('esp32.py #2', extra_args)
     if lv_cflags:
         lv_cflags += ' -DLV_KCONFIG_IGNORE=1'
     else:
@@ -615,16 +616,17 @@ def build_commands(_, extra_args, script_dir, lv_cflags, ___):
         'USER_C_MODULES=../../../../../ext_mod/micropython.cmake'
     ])
 
-    # esp_cmd.extend(extra_args)
-
+    esp_cmd.extend(extra_args)   # maybe needed for custom board build?
+    print('esp.py #3', esp_cmd)
     compile_cmd.extend(esp_cmd[:])
+    print('esp32.py #4', compile_cmd)
     compile_cmd.pop(1)
 
     if board_variant:
         clean_cmd.append(f'BOARD_VARIANT={board_variant}')
         compile_cmd.insert(7, f'BOARD_VARIANT={board_variant}')
         submodules_cmd.append(f'BOARD_VARIANT={board_variant}')
-
+    print('esp32.py #5', extra_args)
     return extra_args
 
 
@@ -1493,10 +1495,11 @@ def compile(*args):  # NOQA
     try:
         cmd_ = compile_cmd[:]
         cmd_.extend(args)
+        print('esp32.py #6', cmd_)
 
         ret_code, output = spawn(cmd_, env=env, cmpl=True)
-
-        revert_custom_board()
+        print('esp32.py #7', ret_code, output)
+        #revert_custom_board()   # should not automatically delete custom board folder from boards folder. 
 
         if ret_code != 0:
             if custom_board_path is not None:
