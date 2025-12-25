@@ -161,7 +161,7 @@ def get_espidf():
     print(f'collecting ESP-IDF v5.5.1')
     print('this might take a while...')
     result, _ = spawn(cmd, spinner=True)
-    print('esp32.py', result, -)
+    print('esp32.py', result, _)
     if result != 0:
         sys.exit(result)
 
@@ -566,7 +566,7 @@ def parse_args(extra_args, lv_cflags, brd):
     board = brd
 
     extra_args = common_args(extra_args)
-    print('esp32.py parse_args', extrsa_args)
+    print('esp32.py parse_args', extra_args)
     if board == 'ESP32_GENERIC':
         extra_args = esp32_args(extra_args)
     elif board in ('ESP32_GENERIC_S3', 'ESP32_GENERIC_P4'):
