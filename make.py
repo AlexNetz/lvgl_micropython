@@ -23,7 +23,7 @@ argParser.add_argument(
     action='store'
 )
 args, extra_args = argParser.parse_known_args(sys.argv[1:])
-
+print('check #1', args, extra_args)
 custom_board_path = args.custom_board_path
 
 if custom_board_path is not None:
@@ -60,12 +60,13 @@ if args.toml is not None:
     from builder import toml_reader
 
     build_command = toml_reader.run(toml_path, driver_out_path)
-
+    print('build_command', build_command)
     for arg in extra_args:
         if arg not in build_command:
             build_command.append(arg)
 
     extra_args = build_command
+    print('extra_args', extra_args)
 
 argParser = ArgumentParser(prefix_chars='-')
 argParser.add_argument(
@@ -82,7 +83,7 @@ argParser.add_argument(
 
 args1, extra_args = argParser.parse_known_args(extra_args)
 target = args1.target[0]
-
+print('check #2',args1, extra_args)
 
 argParser = ArgumentParser(prefix_chars='-mscLBFDIVE')
 
@@ -183,7 +184,7 @@ argParser.add_argument(
 
 
 args2, extra_args = argParser.parse_known_args(extra_args)
-
+print('check #3'args2, extra_args)
 lv_cflags = args2.lv_cflags
 clean = args2.clean
 board = args2.board
@@ -210,7 +211,7 @@ if lv_cflags is None:
 
 extra_args.append(f'FROZEN_MANIFEST="{SCRIPT_DIR}/build/manifest.py"')
 extra_args.append(f'GEN_SCRIPT=python')
-
+print('check #4', extra_args)
 
 if lv_cflags is not None:
     lv_cflags = lv_cflags.replace('"', '')
@@ -301,9 +302,10 @@ if __name__ == '__main__':
         mod.custom_board_path = custom_board_path
 
     extra_args, lv_cflags, board = mod.parse_args(extra_args, lv_cflags, board)
+    print('check #5', extra_args)
     extra_args = mod.build_commands(
         target, extra_args, SCRIPT_DIR, lv_cflags, board)
-
+    print('check #6', extra_args)
     if clean:
         print('Cleaning build....')
         mod.force_clean(True)
