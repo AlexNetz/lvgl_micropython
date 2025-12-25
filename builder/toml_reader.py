@@ -475,8 +475,8 @@ io_expander_path = os.path.join(base_path, 'api_drivers/common_api_drivers/io_ex
 
 
 display_drivers = [file for file in os.listdir(display_driver_path) if not file.endswith('.wip') and not file.endswith('.py')]
-indev_drivers = [file[:-3] for file in os.listdir(indev_driver_path) if file.endswith('.py')]
-io_expanders = [file[:-3] for file in os.listdir(io_expander_path) if file.endswith('.py')]
+indev_drivers = [file for file in os.listdir(indev_driver_path) if file.endswith('.py')]
+io_expanders = [file for file in os.listdir(io_expander_path) if file.endswith('.py')]
 
 
 def run(toml_path, output_file):
