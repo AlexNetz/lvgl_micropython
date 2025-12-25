@@ -184,7 +184,7 @@ argParser.add_argument(
 
 
 args2, extra_args = argParser.parse_known_args(extra_args)
-print('check #3'args2, extra_args)
+print('check #3', args2, extra_args)
 lv_cflags = args2.lv_cflags
 clean = args2.clean
 board = args2.board
