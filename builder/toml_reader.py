@@ -497,8 +497,8 @@ def run(toml_path, output_file):
                 f.write(t_data)
 
         displays = [f'DISPLAY={item}' for item in toml_obj.imports if item in display_drivers]
-        indevs = [f'INDEV={item}' for item in toml_obj.imports if item in indev_drivers]
-        expanders = [f'EXPANDER={item}' for item in toml_obj.imports if item in io_expanders]
+        indevs = [f'INDEV={item}' for item in toml_obj.imports if item + '.py' in indev_drivers]
+        expanders = [f'EXPANDER={item}' for item in toml_obj.imports if item + '.py' in io_expanders]
 
         if toml_obj.mcu_obj is None:
             build_command = []
