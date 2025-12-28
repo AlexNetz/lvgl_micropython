@@ -58,7 +58,6 @@ class TOMLObject(metaclass=TOMLMeta):
     def add_child(self, child):
         if child.name != 'MCU':
             self.__children.append(child)
-            print(self.__children)
 
     def __getattr__(self, item):
         if item in self.__dict__:
