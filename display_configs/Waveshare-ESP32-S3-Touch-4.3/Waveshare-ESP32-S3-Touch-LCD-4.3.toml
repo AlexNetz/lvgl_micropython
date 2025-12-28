@@ -1,4 +1,4 @@
-[MCU.esp32]
+[MCU.esp32s3]
 BOARD = "Waveshare-ESP32-S3-Touch-4.3"
 BOARD_VARIANT = "SPIRAM_OCT"
 flash_size = 16
@@ -148,3 +148,4 @@ params = [100]
 
 [task_handler.TaskHandler]
 params = []
+
