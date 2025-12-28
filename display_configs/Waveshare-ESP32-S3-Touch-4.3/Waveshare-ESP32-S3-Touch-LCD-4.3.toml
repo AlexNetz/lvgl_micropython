@@ -15,7 +15,7 @@ CONFIG_SPIRAM_FETCH_INSTRUCTIONS='y'
 CONFIG_SPIRAM_RODATA='y'
 CONFIG_ESP32S3_DATA_CACHE_LINE_64B='y'
 CONFIG_COMPILER_OPTIMIZATION_PERF='y'
-FROZEN_MANIFEST = "/mnt/c/Users/alex/code/lvgl_alex/lvgl_micropython/display_configs/Waveshare-ESP32-S3-Touch-4.3/manifest.py"
+FROZEN_MANIFEST = "display_configs/Waveshare-ESP32-S3-Touch-4.3/manifest.py"
 ota = 'True'
 debug = 'True'
 
@@ -148,5 +148,6 @@ params = [100]
 
 [task_handler.TaskHandler]
 params = []
+
 
 
