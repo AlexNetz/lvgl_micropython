@@ -58,6 +58,7 @@ class TOMLObject(metaclass=TOMLMeta):
     def add_child(self, child):
         if child.name != 'MCU':
             self.__children.append(child)
+            print(self.__children)
 
     def __getattr__(self, item):
         if item in self.__dict__:
@@ -75,6 +76,10 @@ class TOMLObject(metaclass=TOMLMeta):
 
         if self.__kwargs:
             if 'params' in self.__kwargs or 'value' in self.__kwargs:
+                if self.parent.fqn is None:                     # allows to pass only one value, so you can declare a variable. e.g.: [fw_config]                            
+                    global_variable_names.append(self.name)     # prevents to import the variable
+                    return self.name                            # if value is a string, it needs double quote. e.g.: value = "touch.firmware_config"
+                
                 return self.parent.fqn + '.' + self.name
 
             return self.name + ' = ' + self.parent.fqn
@@ -124,8 +129,8 @@ class TOMLObject(metaclass=TOMLMeta):
     def var_names(self):
         if self.__kwargs:
             fqn = self.fqn
-
             if '=' in fqn:
+
                 return [fqn.split('=')[0].strip()]
 
             return []
@@ -135,8 +140,8 @@ class TOMLObject(metaclass=TOMLMeta):
         for child in self.__children:
             if isinstance(child, TOMLConditional):
                 continue
-
-            var_names.extend(child.var_names)
+            
+            var_names.extend(child.var_names) 
 
         return var_names
 
@@ -163,15 +168,17 @@ class TOMLObject(metaclass=TOMLMeta):
                     continue
 
                 res.extend(child.constants)
-
+        
         return res
 
     def __str__(self):
         if self.parent is None:
             global_variable_names.extend(self.var_names)
-
+  
             output = []
             output.extend(self.constants)
+            output.insert(0,'')
+            output.append('')
 
             for child in self.__children:
                 if isinstance(child, TOMLConditional):
@@ -179,12 +186,14 @@ class TOMLObject(metaclass=TOMLMeta):
 
                 elif child.name not in global_variable_names:
                     module = child.fqn.split('.')[0]
+                    
                     if module not in self.imports and module not in used_imports:
                         self.imports.append(module)
                         used_imports.append(module)
-                        output.extend(['', f'import {module}', ''])
-
+                        output.insert(0,f'import {module}')
+                
                 output.append(str(child))
+                
                 if isinstance(child, TOMLConditional):
                     output.append('')
 
@@ -193,7 +202,6 @@ class TOMLObject(metaclass=TOMLMeta):
                     'from micropython import const',
                     'import lvgl as lv',
                     '',
-                    ''
                 ] + output
 
             return '\n'.join(output)
@@ -206,6 +214,7 @@ class TOMLObject(metaclass=TOMLMeta):
 
         if len(self.__kwargs) == 1:
             key = list(self.__kwargs.keys())[0]
+            value = list(self.__kwargs.values())[0]
             if key == 'params':
                 output = ''
                 for param in self.__kwargs[key]:
@@ -219,7 +228,7 @@ class TOMLObject(metaclass=TOMLMeta):
                                 mod in io_expanders
                             )
                         ):
-                            output += f'import {mod}\n\n'
+                            output.insert(0,f'import {mod}\n\n')
                             used_imports.append(mod)
 
                 params = ', '.join(str(itm) for itm in self.__kwargs[key])
@@ -240,10 +249,12 @@ class TOMLObject(metaclass=TOMLMeta):
                             mod in io_expanders
                         )
                     ):
-                        output += f'import {mod}\n\n'
+                        output.insert(0, f'import {mod}\n\n')
                         used_imports.append(mod)
-
-                if key == 'value':
+                if key == 'value' and value is True:     # allows to call a function without arguements, without getting an import
+                    output += f'{fqn}()'                 # ["var = func"]
+                    return output                        # value = true --> "var = func()"               
+                if key == 'value' and value is not True:
                     output += f'{fqn} = ' + str(self.__kwargs[key])
                 else:
                     output += f'{fqn}({key}={str(self.__kwargs[key])})'
@@ -265,7 +276,7 @@ class TOMLObject(metaclass=TOMLMeta):
                         mod in io_expanders
                     )
                 ):
-                    output.append(f'import {mod}')
+                    output.insert(0, f'import {mod}')
                     used_imports.append(mod)
             if output:
                 output.append('')
@@ -475,8 +486,8 @@ io_expander_path = os.path.join(base_path, 'api_drivers/common_api_drivers/io_ex
 
 
 display_drivers = [file for file in os.listdir(display_driver_path) if not file.endswith('.wip') and not file.endswith('.py')]
-indev_drivers = [file[:-3] for file in os.listdir(indev_driver_path) if file.endswith('.py')]
-io_expanders = [file[:-3] for file in os.listdir(io_expander_path) if file.endswith('.py')]
+indev_drivers = [file for file in os.listdir(indev_driver_path) if file.endswith('.py')]    # returns the filenames without cropping
+io_expanders = [file for file in os.listdir(io_expander_path) if file.endswith('.py')]
 
 
 def run(toml_path, output_file):
@@ -497,8 +508,8 @@ def run(toml_path, output_file):
                 f.write(t_data)
 
         displays = [f'DISPLAY={item}' for item in toml_obj.imports if item in display_drivers]
-        indevs = [f'INDEV={item}' for item in toml_obj.imports if item in indev_drivers]
-        expanders = [f'EXPANDER={item}' for item in toml_obj.imports if item in io_expanders]
+        indevs = [f'INDEV={item}' for item in toml_obj.imports if item + '.py' in indev_drivers]    # ".py" needs to be added to item to compare with filelist
+        expanders = [f'EXPANDER={item}' for item in toml_obj.imports if item + '.py' in io_expanders]   # ".py" needs to be added to item to compare with filelist
 
         if toml_obj.mcu_obj is None:
             build_command = []
