@@ -1344,8 +1344,6 @@ def update_main():
 
 
 def build_sdkconfig(*args):
-    if custom_board_path is not None:
-        return []
 
     base_config = [
         '',
