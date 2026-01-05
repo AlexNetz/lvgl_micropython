@@ -1,0 +1,166 @@
+[MCU.esp32]
+BOARD = "Waveshare-ESP32-S3-Touch-4.3"
+FLASH_SIZE = 16
+ENABLE_JTAG_REPL = 'n'
+ENABLE_CDC_REPL = 'n'
+ENABLE_UART_REPL = 'y'
+CONFIG_FREERTOS_HZ='y'
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240='y'
+CONFIG_ESPTOOLPY_FLASHMODE_QIO='y'
+CONFIG_ESPTOOLPY_FLASHFREQ_120M='y'
+CONFIG_IDF_EXPERIMENTAL_FEATURES='y'
+CONFIG_SPIRAM_SPEED_120M='y'
+CONFIG_SPIRAM_FETCH_INSTRUCTIONS='y'
+CONFIG_SPIRAM_RODATA='y'
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B='y'
+CONFIG_COMPILER_OPTIMIZATION_PERF='y'
+FROZEN_MANIFEST = "display_configs/Waveshare-ESP32-S3-Touch-4.3/manifest.py"
+OTA = 'True'
+DEBUG = 'True'
+
+[SPI.Bus.spi_bus]
+id = 2
+sck = 12
+mosi = 11
+miso = 13
+# just a comment
+[I2C.Bus.i2c_bus]
+host = 0
+scl = 9
+sda = 8
+freq = 400000
+
+[I2C.Device.expander]
+bus = "i2c_bus"
+dev_id = "ch422g.I2C_ADDR"
+reg_bits = "ch422g.BITS"
+
+[I2C.Device.touch]
+bus = "i2c_bus"
+dev_id = "gt911.I2C_ADDR"
+reg_bits = "gt911.BITS"
+
+["ch422g.Pin.set_device"]
+params = ["expander"]
+
+[ch422g.Pin.bckl_pin]
+id = "ch422g.EXIO2"
+mode = "ch422g.Pin.OUT"
+value = 1
+
+[ch422g.Pin.rst_pin]
+id = "ch422g.EXIO1"
+mode = "ch422g.Pin.OUT"
+value = 0
+
+[ch422g.Pin.sd_cs_pin]
+id = "ch422g.EXIO4"
+mode = "ch422g.Pin.OUT"
+value = 0
+
+[machine.Pin.ctp_irq]
+Pin = 4
+mode = "machine.Pin.OUT"
+value = 0
+
+[RGBBus.display_bus]
+data0 = 14
+data1 = 38
+data2 = 18
+data3 = 17
+data4 = 10
+data5 = 39
+data6 = 0
+data7 = 45
+data8 = 48
+data9 = 47
+data10 = 21
+data11 = 1
+data12 = 2
+data13 = 42
+data14 = 41
+data15 = 40
+hsync = 46
+vsync = 3
+de = 5
+pclk = 7
+disp = "bckl_pin"
+freq = 12000000
+hsync_front_porch = 8
+hsync_back_porch = 8
+hsync_pulse_width = 4
+hsync_idle_low = true
+vsync_front_porch = 8
+vsync_back_porch = 8
+vsync_pulse_width = 4
+vsync_idle_low = false
+de_idle_high = false
+pclk_idle_high = false
+pclk_active_low = true
+
+[display_bus.allocate_framebuffer._BUF1]
+size = 76800
+caps = "lcd_bus.MEMORY_SPIRAM"
+
+[display_bus.allocate_framebuffer._BUF2]
+size = 76800
+caps = "lcd_bus.MEMORY_SPIRAM"
+
+[RGBDisplay.display]
+data_bus = "display_bus"
+display_width = 800
+display_height = 480
+frame_buffer1 = "_BUF1"
+frame_buffer2 = "_BUF2"
+backlight_pin = "bckl_pin"
+color_space = "lv.COLOR_FORMAT.RGB565"
+
+
+
+[display.init]
+params = []
+
+[display.set_power]
+params = [true]
+
+[display.set_backlight]
+params = [100]
+
+[gt911.GT911.touch]
+device = "indev_device"
+
+
+
+[conditional.indev.hw_size]
+not_equal = "_DISPLAY_WIDTH, _DISPLAY_HEIGHT"
+[conditional.fw_config]
+value = "touch.firmware_config"
+[conditional.fw_config.width]
+value = "_DISPLAY_WIDTH"
+[conditional.fw_config.height]
+value= "_DISPLAY_HEIGHT"
+[conditional.fw_config.save]
+params = []
+
+[exception.try]
+[exception.class]
+instance = "sd"
+class = "machine.SDCard"
+spi_bus = "spi_bus"
+slot = 3
+width = 1
+freq = 20000000
+[exception.except]
+type = "Exception"
+letter = "e"
+[exception.raise]
+error = "SD-Card Error:"
+letter = "e"
+
+[vfs.mount]
+params = ["sd, '/sd'"]
+
+[task_handler.TaskHandler]
+params = []
+
+
