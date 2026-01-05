@@ -1,4 +1,5 @@
 import os
+import time
 
 try:
     import toml
@@ -10,14 +11,21 @@ except ImportError:
 
 used_imports = []
 global_variable_names = []
-
+exceptions = ['try', 'except', 'else', 'finally']
+global_imports = []
+global_constants = []
+used_constants = []
 
 class TOMLMeta(type):
 
-    def __call__(cls, name, parent=None, **kwargs):
-        if name and name == 'conditional':
-            return TOMLConditional(name, None, **kwargs)
-
+    def __call__(cls, name, parent=None, **kwargs):        
+        
+        if name and 'exception' in name:        
+            exc = TOMLException(name, None, **kwargs)
+            return exc      
+        if name and 'conditional' in name:
+            ret = TOMLConditional(name, None, **kwargs)
+            return ret
         children = {}
         for key, value in list(kwargs.items()):
             if isinstance(value, dict):
@@ -28,10 +36,10 @@ class TOMLMeta(type):
 
         for child_name, child_data in children.items():
             child = TOMLObject(child_name, parent=instance, **child_data)
-            instance.add_child(child)
-
+            instance.add_child(child) 
+        
         return instance
-
+    
 
 class TOMLObject(metaclass=TOMLMeta):
 
@@ -75,6 +83,10 @@ class TOMLObject(metaclass=TOMLMeta):
 
         if self.__kwargs:
             if 'params' in self.__kwargs or 'value' in self.__kwargs:
+                if self.parent.fqn is None:                     # allows to pass only one value, so you can declare a variable. e.g.: [fw_config]                            
+                    global_variable_names.append(self.name)     # prevents to import the variable
+                    return self.name                            # if value is a string, it needs double quotes. e.g.: value = "touch.firmware_config"
+                
                 return self.parent.fqn + '.' + self.name
 
             return self.name + ' = ' + self.parent.fqn
@@ -124,8 +136,8 @@ class TOMLObject(metaclass=TOMLMeta):
     def var_names(self):
         if self.__kwargs:
             fqn = self.fqn
-
             if '=' in fqn:
+
                 return [fqn.split('=')[0].strip()]
 
             return []
@@ -133,17 +145,16 @@ class TOMLObject(metaclass=TOMLMeta):
         var_names = []
 
         for child in self.__children:
-            if isinstance(child, TOMLConditional):
+            if isinstance(child, (TOMLConditional, TOMLException)):
                 continue
-
-            var_names.extend(child.var_names)
+            var_names.extend(child.var_names) 
 
         return var_names
 
     @property
     def constants(self):
         res = []
-
+        
         if not self.__children:
             for key, value in list(self.__kwargs.items()):
                 if not isinstance(value, int) or key == 'value':
@@ -159,43 +170,44 @@ class TOMLObject(metaclass=TOMLMeta):
                 self.__kwargs[key] = f'_{key_upper}'
         else:
             for child in self.__children:
-                if isinstance(child, TOMLConditional):
+                if isinstance(child, (TOMLConditional, TOMLException)):
                     continue
 
                 res.extend(child.constants)
-
+        
         return res
 
     def __str__(self):
         if self.parent is None:
             global_variable_names.extend(self.var_names)
-
             output = []
+            output.extend(global_constants)
             output.extend(self.constants)
-
+            output.insert(0,'')
+            output.append('')
             for child in self.__children:
-                if isinstance(child, TOMLConditional):
+                if isinstance(child, (TOMLConditional, TOMLException)):
                     output.append('')
-
                 elif child.name not in global_variable_names:
                     module = child.fqn.split('.')[0]
+                    
                     if module not in self.imports and module not in used_imports:
                         self.imports.append(module)
                         used_imports.append(module)
-                        output.extend(['', f'import {module}', ''])
-
+                        output.insert(0,f'import {module}')
                 output.append(str(child))
-                if isinstance(child, TOMLConditional):
-                    output.append('')
-
+                
+                if isinstance(child, (TOMLConditional)):
+                    output.append(' ')
+            for imp in global_imports:
+                output.insert(0, f'import {imp}')
+            
             if output:
                 output = [
                     'from micropython import const',
                     'import lvgl as lv',
                     '',
-                    ''
                 ] + output
-
             return '\n'.join(output)
 
         if self.__children and not self.__kwargs:
@@ -203,9 +215,10 @@ class TOMLObject(metaclass=TOMLMeta):
             return '\n'.join(output)
 
         fqn = self.fqn
-
+        
         if len(self.__kwargs) == 1:
             key = list(self.__kwargs.keys())[0]
+            value = list(self.__kwargs.values())[0]
             if key == 'params':
                 output = ''
                 for param in self.__kwargs[key]:
@@ -219,7 +232,7 @@ class TOMLObject(metaclass=TOMLMeta):
                                 mod in io_expanders
                             )
                         ):
-                            output += f'import {mod}\n\n'
+                            output.insert(0,f'import {mod}\n\n')
                             used_imports.append(mod)
 
                 params = ', '.join(str(itm) for itm in self.__kwargs[key])
@@ -240,14 +253,16 @@ class TOMLObject(metaclass=TOMLMeta):
                             mod in io_expanders
                         )
                     ):
-                        output += f'import {mod}\n\n'
+                        output.insert(0, f'import {mod}\n\n')
                         used_imports.append(mod)
-
-                if key == 'value':
+                if key == 'value' and value is True:     # allows to call a function without arguements, without getting an import
+                    output += f'{fqn}()'                 # ["var = func"]
+                    return output                        # value = true --> "var = func()"               
+                if key == 'value' and value is not True:
                     output += f'{fqn} = ' + str(self.__kwargs[key])
                 else:
                     output += f'{fqn}({key}={str(self.__kwargs[key])})'
-
+                
                 return output
         else:
             output = []
@@ -265,14 +280,14 @@ class TOMLObject(metaclass=TOMLMeta):
                         mod in io_expanders
                     )
                 ):
-                    output.append(f'import {mod}')
+                    output.insert(0, f'import {mod}')
                     used_imports.append(mod)
             if output:
                 output.append('')
 
             params = ',\n'.join(f'    {k}={str(v)}' for k, v in self.__kwargs.items() if not isinstance(v, dict))
             if params:
-                output.append(f'{fqn}(\n{params}\n)\n')
+                output.append(f'{fqn}(\n{params}\n    )\n')
             else:
                 raise RuntimeError
 
@@ -281,8 +296,256 @@ class TOMLObject(metaclass=TOMLMeta):
 
             if len(output) > 2:
                 output.append('')
-
+                
             return '\n'.join(output)
+
+#-----------------------------------------------------------------------------        
+# TOMLException adds a new class. In the toml. file, the first element between   
+# the[]brackets must contain 'exception', but can´ be set freely.All elements
+# with the same name are contained to one block, like the TOMLConditional.
+#
+# The second element has to be one of the following arguements:
+# -try, except, else, finally
+# Some simple code expressions are implemented:
+# -class (call an instance of a class)
+# -func (function calls)
+# -calc (calculating numbers) 
+# 
+# [exception.try] simply becomes --> 'try:', same for 'else' and 'finally'
+# 
+# [exception.except]
+# type = "Exception"
+# letter = "e"   --> 'except Exception as e:'
+#
+# [exception.raise}
+# error = "Error message:"
+# letter = "e"      --> 'print("Error message:",e)
+#
+# [exception.func]
+# instance = "some_variable"
+# function = "your_function"
+# data = "something or empty"        --> 'some_variable = your_function(something)
+#
+# [exception.calc]
+# instance = "some_variable"
+# operator = "+-*/..."
+# value1 = "something"
+# value2 = "anything"       --> 'some_variable = something +-*/ anything'
+#
+# [exception.class]
+# instance = "instance"
+# class = "module.class"
+# key1 = "value1"
+# key2 = "value2"        --> 'instance = module.class(
+#                                key = value,
+#                                key2 = value2
+#                                )                       
+#----------------------------------------------------------------------------- 
+
+class TOMLExceptionObject:
+    
+    def __init__(self, name, parent=None, **kwargs):
+        global indt, actual
+        self.name = name
+        self.parent = parent
+        self.__children = []
+        
+        for key, value in list(kwargs.items())[:]:
+            if isinstance(value, dict): 
+                self.__children.append(TOMLExceptionObject(key, self, **value))
+                del kwargs[key]
+        self.__kwargs = kwargs
+
+    def check_imports(self, item):
+        module = item.split('.',1)[0]
+        if module not in used_imports:
+            global_imports.append(module)
+            used_imports.append(module)    
+        return    
+    
+    def add_constants(self, _inst):
+        res = []
+        
+        if not self.__children:
+            for key, value in self.__kwargs.items():
+                if not isinstance(value, int):
+                    continue
+                name = key.upper()
+                _inst = _inst.split('.', 1)[0]
+                inst = _inst.upper()
+                line = (f'_{inst}_{name} = const({value})')
+                if line not in used_constants:
+                    global_constants.append(line)
+                used_constants.append(line)
+        else:        
+            for child in self.__children:
+                res.append(self.add_constants)
+        
+        return res
+    
+    def get_exception(self):
+        __data = []
+        match self.name:
+            case 'try' | 'else' | 'finally': 
+                return f'{self.name}:'
+            case 'except':
+                return f'except {self.__kwargs['type']} as {self.__kwargs['letter']}:' 
+            case 'raise':
+                return f'    print("{self.__kwargs['error']}", {self.__kwargs['letter']}\n'      
+            case 'func':
+                for key,value in self.__kwargs.items():
+                    match key:
+                        case 'instance': __inst = value
+                        case 'function': __func = value
+                        case _: __data.append(f'{value})')
+                __data.insert(0,f'    {__inst} = {__func}(')        
+                code = ''.join(__data)
+                return code               
+            case 'class':
+                for key,value in self.__kwargs.items():
+                    match key:
+                        case 'instance': __inst = value
+                        case 'class': __cls = value
+                        case _: __data.append(f'        {key} = {value},')  
+                __data.insert(0, f'    {__inst} = {__cls}(')
+                __data.append(f'        )')                
+                code = '\n'.join(__data)
+                glob_const = self.add_constants(__inst)
+                self.check_imports(__cls)
+                return code                
+            case 'calc':
+                for key,value in self.__kwargs.items():
+                    match key:
+                        case 'instance': __inst = value
+                        case 'operator': __oper = value
+                        case 'value1': __val1 = value 
+                        case 'value2': __val2 = value
+                        case _: raise RuntimeError('Unsupported key in toml. file detected!')    
+                __data.append(f'    {__inst} = {__val1} {__oper} {__val2}')        
+                code = ''.join(__data)
+                return code                
+            case _:
+                raise RuntimeError('Unable to locate exception argument')     
+
+    def is_exception(self):
+        excp = self.get_exception()        
+        return excp is not None        
+
+        
+    def get_objects(self):
+        res = []
+
+        base_exception = self.parent
+        while not isinstance(base_exception, TOMLException):
+            base_exception = base_exception.parent
+
+        if self.is_exception():
+            for child in self.__children:
+                res.extend(child.get_objects())
+               
+        else:
+            if 'value' in self.__kwargs:
+                names = []
+                parent = self.parent
+                
+                while parent.name and not isinstance(parent, TOMLException):
+                    names.insert(0, parent.name)
+                    parent = parent.parent
+
+                while names and not base_exception.has_variable_name('.'.join(names)):
+                    names.pop(0)
+
+                names.append(self.name)
+                var_name = '.'.join(names)
+                base_excepiton.add_variable_name(var_name)
+                res.append(f'{var_name} = {self.__kwargs["value"]}')
+
+            elif 'params' in self.__kwargs:
+                params = ', '.join(str(item) for item in self.__kwargs['params'])
+                if self.name == 'del':
+                    res.append(f'{self.name} {params}')
+                else:
+                    res.append(f'{self.name}({params})')
+                return res
+                
+            for child in self.__children:
+                lines = child.get_objects()
+                for line in lines:
+                    if ' = ' in line:
+                        var_name = line.split(' = ', 1)[0]
+                        if base_exception.has_variable_name(var_name):
+                            res.append(line)
+                            continue
+                    else:
+                        try:
+                            func_name = line.split('(', 1)[0]
+                            if base_exception.has_variable_name(func_name):
+                                res.append(line)
+                                continue
+
+                            func_name = func_name.split('.', 1)[0]
+                            if base_exception.has_variable_name(func_name):
+                                res.append(line)
+                                continue
+                        except IndexError:
+                            pass
+
+                    if line.startswith('del '):
+                        res.append(line)
+                    else:
+                        res.append(f'{self.name}.{line}')                
+        return res
+
+    def is_variable(self):
+        return 'value' in self.__kwargs
+
+    def is_function(self):
+        return 'params' in self.__kwargs
+         
+
+class TOMLException:    
+    
+    def __init__(self, name, parent=None, **kwargs):
+        
+        self.name = name
+        self.parent = parent
+        self.__kwargs = kwargs
+        self.__children = []
+
+
+        for key, value in list(self.__kwargs.items())[:]:
+            if isinstance(value, dict):
+                self.__children.append(TOMLExceptionObject(key, self, **value))
+                del kwargs[key]
+            elif isinstance(value, list):
+                value = value.pop(0)
+                self.__children.append(TOMLExceptionObject(key, self, **value))
+
+        self.__kwargs = kwargs
+        
+        code = []
+        for child in self.__children:
+            excp = child.get_exception()
+            if excp is not None and child.is_exception():                 
+                code.append(excp)                
+                continue
+
+            else:
+                raise RuntimeError('Unable to locate exception argument')
+
+        for child in self.__children:
+            code.extend([f'    {line}' for line in child.get_objects()])  #--> 3.10
+        self.__code = '\n'.join(code)
+        
+    def add_variable_name(self, name):
+        if name not in self.__variable_names:
+            self.__variable_names.append(name)
+
+    def has_variable_name(self, name):
+        return name in self.__variable_names    
+        
+    def __str__(self):
+        return self.__code
 
 
 class TOMLConditionalObject:
@@ -291,12 +554,10 @@ class TOMLConditionalObject:
         self.name = name
         self.parent = parent
         self.__children = []
-
         for key, value in list(kwargs.items())[:]:
             if isinstance(value, dict):
                 self.__children.append(TOMLConditionalObject(key, self, **value))
                 del kwargs[key]
-
         self.__kwargs = kwargs
 
     def get_conditional(self):
@@ -332,14 +593,14 @@ class TOMLConditionalObject:
 
     def get_objects(self):
         res = []
-
         base_conditional = self.parent
+
         while not isinstance(base_conditional, TOMLConditional):
             base_conditional = base_conditional.parent
 
         if self.is_conditional():
-            for child in self.__children:
-                res.extend(child.get_objects())
+            for child in self.__children:                
+                res.extend(child.get_objects())               
         else:
             if 'value' in self.__kwargs:
                 names = []
@@ -367,7 +628,6 @@ class TOMLConditionalObject:
 
             for child in self.__children:
                 lines = child.get_objects()
-
                 for line in lines:
                     if ' = ' in line:
                         var_name = line.split(' = ', 1)[0]
@@ -419,15 +679,15 @@ class TOMLConditional:
         code = []
         for child in self.__children:
             cond = child.get_conditional()
+
             if cond is not None:
                 code.append(f'if {cond}:')
                 break
-        else:
-            raise RuntimeError('Unable to locate conditional argument')
+            else:
+                raise RuntimeError('Unable to locate conditional argument')
 
         for child in self.__children:
-            code.extend([f'    {line}' for line in child.get_objects()])
-
+            code.extend([f'    {line}' for line in child.get_objects()])  #--> 4.10
         self.__code = '\n'.join(code)
 
     def add_variable_name(self, name):
@@ -437,7 +697,7 @@ class TOMLConditional:
     def has_variable_name(self, name):
         return name in self.__variable_names
 
-    def __str__(self):
+    def __str__(self):        
         return self.__code
 
 
@@ -475,8 +735,8 @@ io_expander_path = os.path.join(base_path, 'api_drivers/common_api_drivers/io_ex
 
 
 display_drivers = [file for file in os.listdir(display_driver_path) if not file.endswith('.wip') and not file.endswith('.py')]
-indev_drivers = [file[:-3] for file in os.listdir(indev_driver_path) if file.endswith('.py')]
-io_expanders = [file[:-3] for file in os.listdir(io_expander_path) if file.endswith('.py')]
+indev_drivers = [file for file in os.listdir(indev_driver_path) if file.endswith('.py')]    # returns the filenames without cropping
+io_expanders = [file for file in os.listdir(io_expander_path) if file.endswith('.py')]
 
 
 def run(toml_path, output_file):
@@ -487,9 +747,7 @@ def run(toml_path, output_file):
     try:
         with open(toml_path, 'r') as f:
             toml_data = toml.load(f)
-
         toml_obj = TOMLObject('', **toml_data)
-
         t_data = str(toml_obj)
 
         if t_data:
@@ -497,8 +755,8 @@ def run(toml_path, output_file):
                 f.write(t_data)
 
         displays = [f'DISPLAY={item}' for item in toml_obj.imports if item in display_drivers]
-        indevs = [f'INDEV={item}' for item in toml_obj.imports if item in indev_drivers]
-        expanders = [f'EXPANDER={item}' for item in toml_obj.imports if item in io_expanders]
+        indevs = [f'INDEV={item}' for item in toml_obj.imports if item + '.py' in indev_drivers]    # ".py" needs to be added to item to compare with filelist
+        expanders = [f'EXPANDER={item}' for item in toml_obj.imports if item + '.py' in io_expanders]   # ".py" needs to be added to item to compare with filelist
 
         if toml_obj.mcu_obj is None:
             build_command = []
@@ -516,7 +774,10 @@ def run(toml_path, output_file):
         for expander in expanders[:]:
             if expander not in build_command:
                 build_command.append(expander)
-
+        print('Generated build command:\n',build_command)
+        time.sleep(5)
+        print('Generated Display.py:\n', t_data)
+        
         return build_command
 
     except OSError as err:
