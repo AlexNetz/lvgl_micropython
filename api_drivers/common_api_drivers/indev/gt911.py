@@ -37,20 +37,14 @@ _ADDR2 = const(0x14)
 class GT911(pointer_framework.PointerDriver):
 
     def _read_reg(self, reg, num_bytes=None, buf=None):
-        self._tx_buf[0] = reg >> 8
-        self._tx_buf[1] = reg & 0xFF
-        if num_bytes is not None:
-            self._device.write_readinto(self._tx_mv[:2], self._rx_mv[:num_bytes])
-        else:
-            self._device.write_readinto(self._tx_mv[:2], buf)
+        self._device.read_mem(reg & 0xFFFF, buf=self._rx_mv[:num_bytes])
 
     def _write_reg(self, reg, value=None, buf=None):
-        if value is not None:
-            self._tx_buf[0] = value
-            self._device.write_mem(reg, self._tx_mv[:1])
-        elif buf is not None:
-            self._device.write_mem(reg, buf)
-
+        self._tx_buf[0] = reg >> 8
+        self._tx_buf[1] = reg & 0xFF
+        self._tx_buf[2] = value
+        self._device.write(self._tx_mv[:3])
+        
     def __init__(
         self,
         device,
