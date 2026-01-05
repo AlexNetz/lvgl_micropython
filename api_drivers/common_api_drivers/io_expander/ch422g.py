@@ -33,8 +33,7 @@ class Pin(io_expander_framework.Pin):
 
     @classmethod
     def set_device(cls, device):
-        if cls._device is not None:
-            raise ValueError('device has already been set')
+        io_expander_framework.Pin.set_device(device)
 
         cls._device = device
 
@@ -94,11 +93,11 @@ class Pin(io_expander_framework.Pin):
             if level:
                 # 3. High level && Set 0 to output high
                 # 4. Low level && Set 0 to output low
-                states = Pin._output_states & ~self.__bit
+                states = Pin._output_states | self.__bit
             else:
                 # 1. High level && Set 1 to output high
                 # 2. Low level && Set 1 to output low
-                states = Pin._output_states | self.__bit
+                states = Pin._output_states & ~ self.__bit
 
             # Write to reg only when different */
             if states != Pin._output_states:
